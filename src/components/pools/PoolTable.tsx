@@ -24,7 +24,7 @@ const ResponsiveGrid = styled.div`
   grid-gap: 1em;
   align-items: center;
 
-  grid-template-columns: 20px 3.5fr repeat(3, 1fr);
+  grid-template-columns: 20px 3.5fr repeat(5, 1fr);
 
   @media screen and (max-width: 900px) {
     grid-template-columns: 20px 1.5fr repeat(2, 1fr);
@@ -61,9 +61,19 @@ const SORT_FIELD = {
   volumeUSD: 'volumeUSD',
   tvlUSD: 'tvlUSD',
   volumeUSDWeek: 'volumeUSDWeek',
+  fees: (poolData: PoolData) => {
+    return poolData.volumeUSD * (poolData.feeTier / 1000000)
+  },
+  apy: (poolData: PoolData) => {
+    const fees = poolData.volumeUSD * (poolData.feeTier / 1000000)
+    return fees / poolData.tvlUSD
+  },
 }
 
 const DataRow = ({ poolData, index }: { poolData: PoolData; index: number }) => {
+  const fees = poolData.volumeUSD * (poolData.feeTier / 1000000)
+  const apy = (fees / poolData.tvlUSD) * 365
+
   return (
     <LinkWrapper to={'/pools/' + poolData.address}>
       <ResponsiveGrid>
@@ -86,6 +96,12 @@ const DataRow = ({ poolData, index }: { poolData: PoolData; index: number }) => 
         <Label end={1} fontWeight={400}>
           {formatDollarAmount(poolData.tvlUSD)}
         </Label>
+        <Label end={1} fontWeight={400}>
+          {formatDollarAmount(fees)}
+        </Label>
+        <Label end={1} fontWeight={400}>
+          {Math.floor(apy * 10000) / 100}%
+        </Label>
       </ResponsiveGrid>
     </LinkWrapper>
   )
@@ -98,7 +114,7 @@ export default function PoolTable({ poolDatas, maxItems = MAX_ITEMS }: { poolDat
   const theme = useTheme()
 
   // for sorting
-  const [sortField, setSortField] = useState(SORT_FIELD.tvlUSD)
+  const [sortField, setSortField] = useState<keyof typeof SORT_FIELD>('tvlUSD')
   const [sortDirection, setSortDirection] = useState<boolean>(true)
 
   // pagination
@@ -118,9 +134,15 @@ export default function PoolTable({ poolDatas, maxItems = MAX_ITEMS }: { poolDat
           .filter((x) => !!x && !POOL_HIDE.includes(x.address))
           .sort((a, b) => {
             if (a && b) {
-              return a[sortField as keyof PoolData] > b[sortField as keyof PoolData]
-                ? (sortDirection ? -1 : 1) * 1
-                : (sortDirection ? -1 : 1) * -1
+              if (typeof SORT_FIELD[sortField] === 'function') {
+                const sorter = SORT_FIELD[sortField] as (poolData: PoolData) => number
+
+                return sorter(a) > sorter(b) ? (sortDirection ? -1 : 1) * 1 : (sortDirection ? -1 : 1) * -1
+              } else {
+                return a[sortField as keyof PoolData] > b[sortField as keyof PoolData]
+                  ? (sortDirection ? -1 : 1) * 1
+                  : (sortDirection ? -1 : 1) * -1
+              }
             } else {
               return -1
             }
@@ -130,7 +152,7 @@ export default function PoolTable({ poolDatas, maxItems = MAX_ITEMS }: { poolDat
   }, [maxItems, page, poolDatas, sortDirection, sortField])
 
   const handleSort = useCallback(
-    (newField: string) => {
+    (newField: keyof typeof SORT_FIELD) => {
       setSortField(newField)
       setSortDirection(sortField !== newField ? true : !sortDirection)
     },
@@ -154,17 +176,23 @@ export default function PoolTable({ poolDatas, maxItems = MAX_ITEMS }: { poolDat
         <AutoColumn gap="16px">
           <ResponsiveGrid>
             <Label color={theme.text2}>#</Label>
-            <ClickableText color={theme.text2} onClick={() => handleSort(SORT_FIELD.feeTier)}>
-              Pool {arrow(SORT_FIELD.feeTier)}
+            <ClickableText color={theme.text2} onClick={() => handleSort('feeTier')}>
+              Pool {arrow('feeTier')}
             </ClickableText>
-            <ClickableText color={theme.text2} end={1} onClick={() => handleSort(SORT_FIELD.volumeUSD)}>
-              Volume 24H {arrow(SORT_FIELD.volumeUSD)}
+            <ClickableText color={theme.text2} end={1} onClick={() => handleSort('volumeUSD')}>
+              Volume 24H {arrow('volumeUSD')}
             </ClickableText>
-            <ClickableText color={theme.text2} end={1} onClick={() => handleSort(SORT_FIELD.volumeUSDWeek)}>
-              Volume 7D {arrow(SORT_FIELD.volumeUSDWeek)}
+            <ClickableText color={theme.text2} end={1} onClick={() => handleSort('volumeUSDWeek')}>
+              Volume 7D {arrow('volumeUSDWeek')}
             </ClickableText>
-            <ClickableText color={theme.text2} end={1} onClick={() => handleSort(SORT_FIELD.tvlUSD)}>
-              TVL {arrow(SORT_FIELD.tvlUSD)}
+            <ClickableText color={theme.text2} end={1} onClick={() => handleSort('tvlUSD')}>
+              TVL {arrow('tvlUSD')}
+            </ClickableText>
+            <ClickableText color={theme.text2} end={1} onClick={() => handleSort('fees')}>
+              Fees 24H {arrow('fees')}
+            </ClickableText>
+            <ClickableText color={theme.text2} end={1} onClick={() => handleSort('apy')}>
+              APY {arrow('apy')}
             </ClickableText>
           </ResponsiveGrid>
           <Break />
